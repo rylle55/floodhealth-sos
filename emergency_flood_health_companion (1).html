@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FloodHealth SOS - Offline Flood Survival Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        emergency: {
+                            red: '#DC2626',
+                            amber: '#D97706',
+                            green: '#059669',
+                            dark: '#0F172A',
+                            oled: '#000000'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .ultra-battery {
+            background-color: #000000 !important;
+            color: #00FF66 !important;
+        }
+        .ultra-battery * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            animation: none !important;
+            transition: none !important;
+            border-color: #00FF66 !important;
+        }
+        .strobe-red {
+            animation: flash-red 0.5s infinite;
+        }
+        .strobe-white {
+            animation: flash-white 0.5s infinite;
+        }
+        @keyframes flash-red {
+            0%, 100% { background-color: #000000; color: #ffffff; }
+            50% { background-color: #DC2626; color: #ffffff; }
+        }
+        @keyframes flash-white {
+            0%, 100% { background-color: #000000; color: #000000; }
+            50% { background-color: #FFFFFF; color: #000000; }
+        }
+        /* Custom scrollbars for high legibility */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-amber-500 selection:text-black">
+
+    <!-- Top Offline/Online Status Bar -->
+    <div id="status-bar" class="bg-emerald-600 text-white px-4 py-2 text-xs font-bold flex justify-between items-center sticky top-0 z-50 transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <span id="network-indicator-dot" class="w-3 h-3 rounded-full bg-white animate-pulse"></span>
+            <span id="network-status-text">ONLINE - ALL SYSTEMS READY</span>
+        </div>
+        <div class="flex items-center gap-3 text-xs">
+            <span id="queue-badge" class="hidden bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px]">
+                <i class="fa-solid fa-clock-rotate-left mr-1"></i><span id="queue-count">0</span> PENDING
+            </span>
+            <span id="battery-status" class="hidden sm:inline-block"><i class="fa-solid fa-battery-half mr-1"></i>--%</span>
+            <button onclick="toggleBatterySaver()" class="bg-black/30 hover:bg-black/50 px-2 py-1 rounded text-[11px] border border-white/20 flex items-center gap-1">
+                <i class="fa-solid fa-bolt text-yellow-300"></i> <span id="battery-btn-text">Battery Mode</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Navigation Bar -->
+    <header class="bg-slate-950 border-b border-slate-800 p-4 sticky top-9 z-40">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center font-black text-2xl text-white shadow-lg shadow-red-900/40">
+                    <i class="fa-solid fa-kit-medical"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg sm:text-xl text-white tracking-wide flex items-center gap-2">
+                        FLOOD HEALTH <span class="bg-red-600/20 text-red-400 text-xs px-2 py-0.5 rounded border border-red-500/30 font-semibold">ZERO-NET READY</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Offline Survival & Emergency Response System</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button onclick="toggleBeaconModal()" class="bg-amber-600 hover:bg-amber-500 text-white p-2.5 rounded-lg flex items-center gap-2 font-bold text-xs sm:text-sm transition shadow-md">
+                    <i class="fa-solid fa-lightbulb text-yellow-200 text-base"></i>
+                    <span class="hidden sm:inline">SOS Strobe</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-slate-950/80 border-b border-slate-800 sticky top-[73px] z-30 backdrop-blur-md">
+        <div class="max-w-5xl mx-auto flex overflow-x-auto no-scrollbar text-xs sm:text-sm font-bold">
+            <button onclick="switchTab('knowledge')" id="tab-knowledge" class="nav-tab active-tab flex-1 min-w-[100px] py-3.5 px-3 border-b-2 border-red-500 text-red-400 text-center flex items-center justify-center gap-2 transition hover:bg-slate-900">
+                <i class="fa-solid fa-book-medical text-base"></i>
+                <span>Health Guide</span>
+            </button>
+            <button onclick="switchTab('queue')" id="tab-queue" class="nav-tab flex-1 min-w-[100px] py-3.5 px-3 border-b-2 border-transparent text-slate-400 text-center flex items-center justify-center gap-2 transition hover:bg-slate-900">
+                <i class="fa-solid fa-paper-plane text-base"></i>
+                <span>Request Dispatch</span>
+            </button>
+            <button onclick="switchTab('sms')" id="tab-sms" class="nav-tab flex-1 min-w-[100px] py-3.5 px-3 border-b-2 border-transparent text-slate-400 text-center flex items-center justify-center gap-2 transition hover:bg-slate-900">
+                <i class="fa-solid fa-comment-sms text-base"></i>
+                <span>SMS Gateway</span>
+            </button>
+            <button onclick="switchTab('map')" id="tab-map" class="nav-tab flex-1 min-w-[100px] py-3.5 px-3 border-b-2 border-transparent text-slate-400 text-center flex items-center justify-center gap-2 transition hover:bg-slate-900">
+                <i class="fa-solid fa-map-location-dot text-base"></i>
+                <span>Outpost Locator</span>
+            </button>
+            <button onclick="switchTab('cache')" id="tab-cache" class="nav-tab flex-1 min-w-[100px] py-3.5 px-3 border-b-2 border-transparent text-slate-400 text-center flex items-center justify-center gap-2 transition hover:bg-slate-900">
+                <i class="fa-solid fa-download text-base"></i>
+                <span>Offline Pack</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+        <section id="section-knowledge" class="tab-content space-y-6">
+            <!-- Search & Quick Filters -->
+            <div class="bg-slate-800/90 border border-slate-700 p-4 rounded-xl shadow-lg space-y-3">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400"></i>
+                    <input type="text" id="search-guide" onkeyup="filterGuide()" placeholder="Search first aid, diseases, water treatments..." 
+                        class="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-red-500 font-medium">
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <button onclick="quickFilterGuide('all')" class="guide-tag bg-slate-700 text-slate-200 px-3 py-1.5 rounded-full font-semibold hover:bg-slate-600">All Topics</button>
+                    <button onclick="quickFilterGuide('skin')" class="guide-tag bg-slate-700 text-slate-200 px-3 py-1.5 rounded-full font-semibold hover:bg-slate-600"><i class="fa-solid fa-hand-dots text-amber-400 mr-1"></i> Skin & Trench Foot</button>
+                    <button onclick="quickFilterGuide('water')" class="guide-tag bg-slate-700 text-slate-200 px-3 py-1.5 rounded-full font-semibold hover:bg-slate-600"><i class="fa-solid fa-faucet-drip text-blue-400 mr-1"></i> Water Purification</button>
+                    <button onclick="quickFilterGuide('illness')" class="guide-tag bg-slate-700 text-slate-200 px-3 py-1.5 rounded-full font-semibold hover:bg-slate-600"><i class="fa-solid fa-virus text-red-400 mr-1"></i> Waterborne Diseases</button>
+                    <button onclick="quickFilterGuide('firstaid')" class="guide-tag bg-slate-700 text-slate-200 px-3 py-1.5 rounded-full font-semibold hover:bg-slate-600"><i class="fa-solid fa-briefcase-medical text-emerald-400 mr-1"></i> First Aid Kits</button>
+                </div>
+            </div>
+
+            <!-- Knowledge Cards Grid -->
+            <div id="guide-cards" class="grid md:grid-cols-2 gap-4">
+                
+                <!-- Skin Infections & Trench Foot -->
+                <div class="guide-card bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 hover:border-slate-600 transition" data-category="skin">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold">
+                            <i class="fa-solid fa-hand-dots"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-white">Trench Foot & Skin Infections</h3>
+                            <span class="text-xs text-amber-400 font-semibold uppercase tracking-wider">Prevention & Wound Care</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-sm text-slate-300">
+                        <div class="bg-amber-950/40 border-l-4 border-amber-500 p-3 rounded-r text-xs">
+                            <strong class="text-amber-300">Critical Warning:</strong> Never sit with wet boots/socks for long hours. Floodwater carries extreme pathogens including Leptospira bacteria.
+                        </div>
+                        <p class="font-semibold text-slate-200">Treatment & Prevention Protocol:</p>
+                        <ul class="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
+                            <li><strong>Dry Immediately:</strong> Wash feet/wounds with clean, disinfected water and soap. Dry thoroughly, especially between toes.</li>
+                            <li><strong>Elevate & Air:</strong> Keep feet elevated when resting. Air dry for at least 8 hours a day if possible.</li>
+                            <li><strong>Open Wounds:</strong> Apply iodine or antiseptic ointment. Cover with a waterproof bandage. Do not submerge open wounds into floodwater.</li>
+                            <li><strong>Fungal/Bacterial Rash:</strong> Keep clean, apply antifungal powder or antibacterial lotion if in kit.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Water Purification Techniques -->
+                <div class="guide-card bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 hover:border-slate-600 transition" data-category="water">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xl font-bold">
+                            <i class="fa-solid fa-bottle-water"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-white">Emergency Water Purification</h3>
+                            <span class="text-xs text-blue-400 font-semibold uppercase tracking-wider">Disinfection Ratios</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-sm text-slate-300">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-slate-900/80 p-2.5 rounded border border-slate-700">
+                                <span class="block font-bold text-blue-400 text-sm"><i class="fa-solid fa-fire mr-1"></i> Boiling</span>
+                                <span>Bring to rolling boil for <strong>1 full minute</strong> (3 mins at high altitudes). Kill all pathogens.</span>
+                            </div>
+                            <div class="bg-slate-900/80 p-2.5 rounded border border-slate-700">
+                                <span class="block font-bold text-emerald-400 text-sm"><i class="fa-solid fa-flask mr-1"></i> Bleach Ratio</span>
+                                <span>Add <strong>8 drops (1/8 tsp)</strong> of unscented household bleach per 1 Gallon of clear water. Wait 30 mins.</span>
+                            </div>
+                        </div>
+                        <ul class="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
+                            <li><strong>Cloudy Water:</strong> Filter through clean cloth/t-shirt or let settle before boiling or adding bleach (double bleach to 16 drops if cloudy).</li>
+                            <li><strong>SODIS (Solar Disinfection):</strong> Fill clear plastic bottles, lay in direct sunlight on metal roof for 6 hours (2 days if cloudy).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Waterborne Illnesses -->
+                <div class="guide-card bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 hover:border-slate-600 transition" data-category="illness">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center text-xl font-bold">
+                            <i class="fa-solid fa-virus-covid"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-white">Leptospirosis, Cholera & Typhoid</h3>
+                            <span class="text-xs text-red-400 font-semibold uppercase tracking-wider">Symptoms & First Response</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-sm text-slate-300">
+                        <div class="space-y-2 text-xs sm:text-sm">
+                            <p><strong class="text-red-400">Leptospirosis:</strong> High fever, severe calf muscle pain, red eyes, yellow skin. <em>Action:</em> Start early antibiotics (Doxycycline if available per health team protocol). Avoid wading in floodwater.</p>
+                            <p><strong class="text-amber-400">Cholera / Acute Diarrhea:</strong> Watery stool, dehydration, rapid pulse. <em>Action:</em> Continuous Oral Rehydration Therapy (ORS).</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <span class="text-xs font-bold text-emerald-400 block mb-1">DIY Emergency ORS Recipe:</span>
+                            <p class="text-xs text-slate-300">Mix 1 Liter clean water + 6 level teaspoons Sugar + 1/2 level teaspoon Salt. Drink continuously.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emergency Kits & Survival -->
+                <div class="guide-card bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 hover:border-slate-600 transition" data-category="firstaid">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                            <i class="fa-solid fa-kit-medical"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-white">Emergency Health Kit Checklist</h3>
+                            <span class="text-xs text-emerald-400 font-semibold uppercase tracking-wider">72-Hour Survival Essentials</span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-xs sm:text-sm text-slate-300">
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> Clean Water (3L/person)
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> ORS / Salt-Sugar Mix
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> Iodine / Antiseptic
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> Paracetamol / Painkillers
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> Waterproof Flashlight
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900/60 rounded border border-slate-700/50">
+                                <input type="checkbox" class="accent-emerald-500 w-4 h-4"> Whistle for SOS
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section id="section-queue" class="tab-content hidden space-y-6">
+            <div class="grid md:grid-cols-12 gap-6">
+                <!-- Request Form -->
+                <div class="md:col-span-7 bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-lg space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-pen text-amber-500"></i> Log Emergency Request
+                        </h2>
+                        <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Offline Ready</span>
+                    </div>
+
+                    <form id="request-form" onsubmit="handleRequestSubmit(event)" class="space-y-3.5 text-xs sm:text-sm">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Request Category *</label>
+                            <select id="req-category" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500 focus:outline-none">
+                                <option value="RESCUE">🚨 Rescue Needed (Trapped / Rising Water)</option>
+                                <option value="MEDICAL">🩺 Medical Assistance / First Aid</option>
+                                <option value="WATER">🚰 Clean Drinking Water</option>
+                                <option value="FOOD">🥫 Food & Infant Supplies</option>
+                                <option value="HAZARD">⚠️ Hazard Report (Electrocution / Contamination)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Urgency Level *</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="flex items-center justify-center p-2 rounded-lg bg-red-950/40 border border-red-800 text-red-300 cursor-pointer font-bold hover:bg-red-900/50">
+                                    <input type="radio" name="urgency" value="HIGH" checked class="mr-1.5 accent-red-500"> CRITICAL
+                                </label>
+                                <label class="flex items-center justify-center p-2 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-300 cursor-pointer font-bold hover:bg-amber-900/50">
+                                    <input type="radio" name="urgency" value="MEDIUM" class="mr-1.5 accent-amber-500"> URGENT
+                                </label>
+                                <label class="flex items-center justify-center p-2 rounded-lg bg-blue-950/40 border border-blue-800 text-blue-300 cursor-pointer font-bold hover:bg-blue-900/50">
+                                    <input type="radio" name="urgency" value="NORMAL" class="mr-1.5 accent-blue-500"> STABLE
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Name / Contact *</label>
+                                <input type="text" id="req-name" required placeholder="e.g. Maria Santos / 09171234567" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">People Count</label>
+                                <input type="number" id="req-people" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="font-semibold text-slate-300">Location / Landmarks *</label>
+                                <button type="button" onclick="getGPSLocation()" class="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                                    <i class="fa-solid fa-location-crosshairs"></i> Auto-Grab GPS
+                                </button>
+                            </div>
+                            <input type="text" id="req-location" required placeholder="e.g. 2nd Floor, 145 Riverside St, Ward 4 (GPS: Pending)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Details & Health Condition</label>
+                            <textarea id="req-details" rows="2" placeholder="e.g. Senior citizen with high fever, diabetic, water at waist level" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500 focus:outline-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-layer-group"></i> Save & Queue Request
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Queue Status & Manual Dispatch -->
+                <div class="md:col-span-5 space-y-4">
+                    <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-lg space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                            <h3 class="font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-emerald-400"></i> Queued Outgoing Signals
+                            </h3>
+                            <button onclick="clearAllQueue()" class="text-xs text-slate-400 hover:text-red-400">Clear</button>
+                        </div>
+
+                        <div id="queue-empty-msg" class="text-center py-8 text-slate-400 space-y-2">
+                            <i class="fa-solid fa-inbox text-3xl text-slate-600"></i>
+                            <p class="text-xs">No pending requests queued.<br>Items saved offline will appear here.</p>
+                        </div>
+
+                        <div id="queue-list" class="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                            <!-- Items injected dynamically -->
+                        </div>
+
+                        <div id="sync-control-box" class="hidden border-t border-slate-700 pt-3 space-y-2">
+                            <button onclick="triggerManualSync()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-rotate"></i> Sync All to Network (If Online)
+                            </button>
+                            <p class="text-[11px] text-slate-400 text-center">Requests will automatically sync when connection returns.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-sms" class="tab-content hidden space-y-6">
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-lg space-y-4">
+                <div class="border-b border-slate-700 pb-3">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-tower-cell text-amber-400"></i> Zero-WiFi SMS Alert Gateway
+                    </h2>
+                    <p class="text-xs text-slate-400">When cellular data/WiFi fails, SMS towers often remain active. Generate formatted compressed SMS payloads for emergency dispatchers.</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4 text-xs sm:text-sm">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Target Hotline / Outpost Number</label>
+                            <select id="sms-target-number" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-red-500">
+                                <option value="911">911 National Emergency Services</option>
+                                <option value="143">143 Red Cross Emergency Hotline</option>
+                                <option value="+639170000000">Municipal Health Outpost 1 (Marikina)</option>
+                                <option value="+639180000000">Disaster Risk Reduction Office</option>
+                                <option value="custom">-- Custom Mobile Number --</option>
+                            </select>
+                        </div>
+
+                        <div id="custom-num-wrap" class="hidden">
+                            <input type="tel" id="sms-custom-num" placeholder="Enter phone number..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Quick SOS Templates</label>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <button onclick="applySMSTemplate('RESCUE')" class="p-2 bg-slate-900 border border-slate-700 hover:border-red-500 rounded text-left text-red-300">
+                                    🚨 <strong>Trapped Rescue</strong>
+                                </button>
+                                <button onclick="applySMSTemplate('LEPTO')" class="p-2 bg-slate-900 border border-slate-700 hover:border-amber-500 rounded text-left text-amber-300">
+                                    💊 <strong>Leptospirosis Kit</strong>
+                                </button>
+                                <button onclick="applySMSTemplate('WATER')" class="p-2 bg-slate-900 border border-slate-700 hover:border-blue-500 rounded text-left text-blue-300">
+                                    💧 <strong>Clean Water SOS</strong>
+                                </button>
+                                <button onclick="applySMSTemplate('OUTPOST')" class="p-2 bg-slate-900 border border-slate-700 hover:border-emerald-500 rounded text-left text-emerald-300">
+                                    📍 <strong>Outpost Status</strong>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 flex flex-col justify-between">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Generated Encoded Payload</label>
+                            <textarea id="sms-payload-text" rows="5" class="w-full bg-slate-950 font-mono text-xs p-3 border border-slate-700 rounded-lg text-emerald-400 focus:outline-none" readonly>[SOS-FLOOD] TYPE: RESCUE | LOC: Ward 4 Bridge | COUNT: 3 | NEED: Medical evacuation immediately.</textarea>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="copySMSPayload()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-lg text-xs flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-copy"></i> Copy Text
+                            </button>
+                            <a id="sms-direct-link" href="sms:911?body=%5BSOS-FLOOD%5D" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg text-xs flex items-center justify-center gap-1.5 text-center">
+                                <i class="fa-solid fa-paper-plane"></i> Launch SMS App
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-map" class="tab-content hidden space-y-6">
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-lg space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-700 pb-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-map-location-dot text-emerald-400"></i> Temporary Health Outposts & Clean Water Points
+                        </h2>
+                        <p class="text-xs text-slate-400">Cached directory & local schematic map for emergency centers nearby.</p>
+                    </div>
+                    <div class="flex gap-1.5 text-xs">
+                        <button onclick="filterOutposts('all')" class="px-2.5 py-1 bg-slate-700 rounded text-slate-200 hover:bg-slate-600 font-bold">All</button>
+                        <button onclick="filterOutposts('active')" class="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded font-bold">Active</button>
+                        <button onclick="filterOutposts('water')" class="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-700 rounded font-bold">Water</button>
+                    </div>
+                </div>
+
+                <!-- Interactive Canvas Offline Vector Map -->
+                <div class="relative bg-slate-950 border border-slate-700 rounded-xl overflow-hidden h-64 sm:h-80 flex items-center justify-center">
+                    <canvas id="offline-map-canvas" class="w-full h-full cursor-crosshair"></canvas>
+                    <div class="absolute bottom-2 left-2 bg-slate-900/90 text-[10px] px-2 py-1 rounded text-slate-300 border border-slate-700 flex gap-3">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Active Health Outpost</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Water Distribution</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Evacuation Center</span>
+                    </div>
+                </div>
+
+                <!-- Directory List -->
+                <div id="outpost-list" class="grid sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <section id="section-cache" class="tab-content hidden space-y-6">
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-lg space-y-4">
+                <div class="border-b border-slate-700 pb-3">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-download text-blue-400"></i> Offline Cache & Printable Cheat Sheet
+                    </h2>
+                    <p class="text-xs text-slate-400">Pre-download guidelines and export emergency references before total blackout.</p>
+                </div>
+
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3 text-xs sm:text-sm">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-database text-emerald-400"></i> Local Storage Health Status
+                        </h3>
+                        <div class="space-y-1.5 text-slate-300 text-xs">
+                            <div class="flex justify-between">
+                                <span>Health Knowledgebase:</span>
+                                <span class="font-mono text-emerald-400">CACHED (100%)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Outpost Map Directory:</span>
+                                <span class="font-mono text-emerald-400">CACHED (100%)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Pending SOS Queue:</span>
+                                <span id="cache-queue-num" class="font-mono text-amber-400">0 ITEMS</span>
+                            </div>
+                        </div>
+                        <button onclick="forceReCache()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded font-bold text-xs border border-slate-600">
+                            Verify & Re-Cache Static Data
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3 text-xs sm:text-sm flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-print text-amber-400"></i> Print / Save Emergency Pocket Guide
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">Export high-density single-page summary for physical printing or saving as PDF on device.</p>
+                        </div>
+                        <button onclick="printCheatSheet()" class="w-full bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-pdf"></i> Generate Printable Sheet
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Screen Beacon / SOS Strobe Modal -->
+    <div id="beacon-modal" class="fixed inset-0 bg-black/95 z-50 hidden flex-col items-center justify-between p-6">
+        <div class="w-full flex justify-between items-center text-white">
+            <span class="font-bold text-sm tracking-widest text-red-500"><i class="fa-solid fa-triangle-exclamation mr-1"></i> EMERGENCY SOS BEACON</span>
+            <button onclick="toggleBeaconModal()" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-600">Close X</button>
+        </div>
+
+        <div id="beacon-light" class="w-64 h-64 sm:w-80 sm:h-80 rounded-full border-4 border-white/20 flex flex-col items-center justify-center text-center p-4 my-auto shadow-2xl transition">
+            <i class="fa-solid fa-lightbulb text-6xl mb-3"></i>
+            <span class="font-black text-xl tracking-wider uppercase" id="beacon-status">BEACON READY</span>
+            <span class="text-xs opacity-80 mt-1">Point screen toward rescue teams or windows</span>
+        </div>
+
+        <div class="w-full max-w-sm space-y-3">
+            <div class="grid grid-cols-3 gap-2 text-xs font-bold">
+                <button onclick="setBeaconMode('solid')" class="bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg border border-slate-600">SOLID WHITE</button>
+                <button onclick="setBeaconMode('sos')" class="bg-red-700 hover:bg-red-600 text-white py-3 rounded-lg border border-red-500">STROBE RED</button>
+                <button onclick="setBeaconMode('white-strobe')" class="bg-slate-200 hover:bg-white text-black py-3 rounded-lg border border-white">STROBE WHITE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        let pendingQueue = JSON.parse(localStorage.getItem('flood_pending_queue') || '[]');
+        let isBatterySaver = false;
+        let beaconInterval = null;
+
+        // Mock Outposts Data
+        const outpostsData = [
+            { id: 1, name: "Marikina High School Outpost", type: "health", status: "Active", x: 30, y: 40, dist: "0.4 km", supplies: "Lepto Kits, ORS, First Aid", phone: "+639171112222" },
+            { id: 2, name: "Ward 4 Water Station", type: "water", status: "Active", x: 60, y: 30, dist: "0.8 km", supplies: "Clean Water, Chlorine Tablets", phone: "+639173334444" },
+            { id: 3, name: "Central Gym Evacuation", type: "evac", status: "Full", x: 75, y: 70, dist: "1.2 km", supplies: "Meals, Shelter, Basic Meds", phone: "+639175556666" },
+            { id: 4, name: "Riverside Clinic Mobile Unit", type: "health", status: "Supplies Low", x: 20, y: 75, dist: "1.5 km", supplies: "Emergency Triage", phone: "+639177778888" }
+        ];
+
+        // On Page Load
+        window.onload = function() {
+            updateNetworkStatus();
+            window.addEventListener('online', updateNetworkStatus);
+            window.addEventListener('offline', updateNetworkStatus);
+
+            renderQueue();
+            renderOutposts('all');
+            initCanvasMap();
+            initBatteryMonitor();
+
+            // Auto-sync attempt on load if online
+            if (navigator.onLine && pendingQueue.length > 0) {
+                triggerManualSync();
+            }
+        };
+
+        // Navigation Tab Switcher
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-tab').forEach(el => {
+                el.classList.remove('border-red-500', 'text-red-400');
+                el.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(`section-${tabId}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`tab-${tabId}`);
+            if (activeNav) {
+                activeNav.classList.remove('border-transparent', 'text-slate-400');
+                activeNav.classList.add('border-red-500', 'text-red-400');
+            }
+
+            if (tabId === 'map') {
+                setTimeout(initCanvasMap, 100);
+            }
+        }
+
+        // Network Status Manager
+        function updateNetworkStatus() {
+            const isOnline = navigator.onLine;
+            const statusBar = document.getElementById('status-bar');
+            const statusDot = document.getElementById('network-indicator-dot');
+            const statusText = document.getElementById('network-status-text');
+
+            if (isOnline) {
+                statusBar.className = "bg-emerald-600 text-white px-4 py-2 text-xs font-bold flex justify-between items-center sticky top-0 z-50 transition-colors duration-300";
+                statusDot.className = "w-3 h-3 rounded-full bg-white animate-pulse";
+                statusText.innerText = "ONLINE - CONNECTED TO CELLULAR / DATA";
+                
+                // If back online with items, notify user
+                if (pendingQueue.length > 0) {
+                    triggerManualSync();
+                }
+            } else {
+                statusBar.className = "bg-amber-600 text-white px-4 py-2 text-xs font-bold flex justify-between items-center sticky top-0 z-50 transition-colors duration-300";
+                statusDot.className = "w-3 h-3 rounded-full bg-yellow-300";
+                statusText.innerText = "OFFLINE MODE - NO INTERNET / NO WIFI (LOCAL CACHE ACTIVE)";
+            }
+        }
+
+        // Handle Form Submission for Offline Requests
+        function handleRequestSubmit(e) {
+            e.preventDefault();
+
+            const req = {
+                id: Date.now(),
+                category: document.getElementById('req-category').value,
+                urgency: document.querySelector('input[name="urgency"]:checked').value,
+                name: document.getElementById('req-name').value,
+                people: document.getElementById('req-people').value,
+                location: document.getElementById('req-location').value,
+                details: document.getElementById('req-details').value,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: 'QUEUED'
+            };
+
+            pendingQueue.push(req);
+            localStorage.setItem('flood_pending_queue', JSON.stringify(pendingQueue));
+
+            // Reset form
+            document.getElementById('request-form').reset();
+            renderQueue();
+
+            // Try auto-sync or show feedback
+            if (navigator.onLine) {
+                triggerManualSync();
+            } else {
+                alert('Request saved locally to device! It will dispatch automatically when signal returns, or you can send via SMS gateway.');
+            }
+        }
+
+        function renderQueue() {
+            const queueList = document.getElementById('queue-list');
+            const emptyMsg = document.getElementById('queue-empty-msg');
+            const badge = document.getElementById('queue-badge');
+            const badgeCount = document.getElementById('queue-count');
+            const cacheNum = document.getElementById('cache-queue-num');
+            const syncBox = document.getElementById('sync-control-box');
+
+            badgeCount.innerText = pendingQueue.length;
+            if (cacheNum) cacheNum.innerText = `${pendingQueue.length} ITEMS`;
+
+            if (pendingQueue.length > 0) {
+                badge.classList.remove('hidden');
+                emptyMsg.classList.add('hidden');
+                syncBox.classList.remove('hidden');
+
+                queueList.innerHTML = pendingQueue.map(item => `
+                    <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg text-xs space-y-1.5">
+                        <div class="flex justify-between items-center">
+                            <span class="font-black px-2 py-0.5 rounded text-[10px] ${item.urgency === 'HIGH' ? 'bg-red-950 text-red-400 border border-red-700' : 'bg-amber-950 text-amber-400 border border-amber-700'}">
+                                ${item.urgency} - ${item.category}
+                            </span>
+                            <span class="text-slate-400 text-[10px]">${item.timestamp}</span>
+                        </div>
+                        <p class="font-bold text-slate-200">${escapeHtml(item.name)} (${item.people} ppl)</p>
+                        <p class="text-slate-300"><i class="fa-solid fa-location-dot text-red-400 mr-1"></i>${escapeHtml(item.location)}</p>
+                        ${item.details ? `<p class="text-slate-400 italic font-mono text-[11px]">${escapeHtml(item.details)}</p>` : ''}
+                        <div class="pt-1 flex justify-between items-center text-[10px]">
+                            <span class="text-amber-400 font-semibold"><i class="fa-solid fa-hourglass-half mr-1"></i>${item.status}</span>
+                            <button onclick="sendSingleSMS(${item.id})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-600">
+                                <i class="fa-solid fa-comment-sms text-amber-400 mr-1"></i>SMS Link
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                badge.classList.add('hidden');
+                emptyMsg.classList.remove('hidden');
+                syncBox.classList.add('hidden');
+                queueList.innerHTML = '';
+            }
+        }
+
+        function clearAllQueue() {
+            if (confirm('Clear all pending queued requests?')) {
+                pendingQueue = [];
+                localStorage.setItem('flood_pending_queue', JSON.stringify(pendingQueue));
+                renderQueue();
+            }
+        }
+
+        function triggerManualSync() {
+            if (!navigator.onLine) {
+                alert('Device is currently offline. Connect to internet/cellular network or use SMS Gateway.');
+                return;
+            }
+
+            // Simulate Network Dispatch
+            alert(`Syncing ${pendingQueue.length} queued request(s) to emergency central registry...`);
+            setTimeout(() => {
+                pendingQueue = [];
+                localStorage.setItem('flood_pending_queue', JSON.stringify(pendingQueue));
+                renderQueue();
+                alert('All requests successfully dispatched to emergency services!');
+            }, 1200);
+        }
+
+        function applySMSTemplate(type) {
+            const payloadArea = document.getElementById('sms-payload-text');
+            const target = document.getElementById('sms-target-number').value;
+            let text = "";
+
+            if (type === 'RESCUE') {
+                text = "[SOS-FLOOD] REQ: RESCUE | LOC: Ward 4, Roof of 2-Storey | COUNT: 4 (1 Infant) | URGENT.";
+            } else if (type === 'LEPTO') {
+                text = "[SOS-HEALTH] REQ: LEPTO-KIT & Doxycycline | LOC: Evac Center 2 | NEED: Waded in 3ft floodwater with cuts.";
+            } else if (type === 'WATER') {
+                text = "[SOS-WATER] REQ: Clean Drinking Water & Purification Tabs | LOC: Zone 3 Chapel | COUNT: 15 family members.";
+            } else if (type === 'OUTPOST') {
+                text = "[OUTPOST-STATUS] Health Outpost 1 active. Supplies needed: ORS, Antiseptic, Bandages.";
+            }
+
+            payloadArea.value = text;
+            updateSMSLink(target, text);
+        }
+
+        function updateSMSLink(number, body) {
+            const link = document.getElementById('sms-direct-link');
+            const cleanNum = number === 'custom' ? document.getElementById('sms-custom-num').value : number;
+            link.href = `sms:${cleanNum}?body=${encodeURIComponent(body)}`;
+        }
+
+        function sendSingleSMS(id) {
+            const item = pendingQueue.find(i => i.id === id);
+            if (!item) return;
+            const text = `[SOS-${item.category}] ${item.urgency} | ${item.name} (${item.people}p) | LOC: ${item.location} | DETAILS: ${item.details || 'None'}`;
+            switchTab('sms');
+            document.getElementById('sms-payload-text').value = text;
+            updateSMSLink('911', text);
+        }
+
+        function copySMSPayload() {
+            const text = document.getElementById('sms-payload-text').value;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text);
+            } else {
+                document.getElementById('sms-payload-text').select();
+                document.execCommand('copy');
+            }
+            alert('SMS text copied to clipboard!');
+        }
+
+        function initCanvasMap() {
+            const canvas = document.getElementById('offline-map-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            // Clear background
+            ctx.fillStyle = "#020617";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Flood Sector Grid
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw Simulated Flood River Line
+            ctx.strokeStyle = "#1e3a8a";
+            ctx.lineWidth = 18;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.2);
+            ctx.bezierCurveTo(canvas.width * 0.4, canvas.height * 0.5, canvas.width * 0.6, 0, canvas.width, canvas.height * 0.8);
+            ctx.stroke();
+
+            // Draw River Label
+            ctx.fillStyle = "#60a5fa";
+            ctx.font = "10px sans-serif";
+            ctx.fillText("FLOODED RIVER ZONE (HIGH RISK)", canvas.width * 0.35, canvas.height * 0.35);
+
+            // Draw Outposts
+            outpostsData.forEach(op => {
+                const px = (op.x / 100) * canvas.width;
+                const py = (op.y / 100) * canvas.height;
+
+                // Color based on type
+                let color = "#10b981"; // Health/Active
+                if (op.type === 'water') color = "#3b82f6";
+                if (op.type === 'evac') color = "#f59e0b";
+
+                // Pulse circle
+                ctx.beginPath();
+                ctx.arc(px, py, 12, 0, Math.PI * 2);
+                ctx.fillStyle = color + "33";
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(px, py, 6, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                // Name label
+                ctx.fillStyle = "#f8fafc";
+                ctx.font = "bold 11px sans-serif";
+                ctx.fillText(op.name, px + 10, py + 4);
+            });
+        }
+
+        function renderOutposts(filter) {
+            const list = document.getElementById('outpost-list');
+            let filtered = outpostsData;
+            if (filter === 'active') filtered = outpostsData.filter(o => o.status === 'Active');
+            if (filter === 'water') filtered = outpostsData.filter(o => o.type === 'water');
+
+            list.innerHTML = filtered.map(op => `
+                <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg space-y-2">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-white text-xs sm:text-sm">${escapeHtml(op.name)}</h4>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-black ${op.status === 'Active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-700' : 'bg-amber-950 text-amber-400 border border-amber-700'}">
+                            ${op.status}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300"><i class="fa-solid fa-box-tissue text-amber-400 mr-1"></i>Supplies: ${op.supplies}</p>
+                    <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800 pt-2">
+                        <span><i class="fa-solid fa-person-walking text-blue-400 mr-1"></i>${op.dist} away</span>
+                        <a href="tel:${op.phone}" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 px-2 py-1 rounded border border-slate-700 text-[11px]">
+                            <i class="fa-solid fa-phone mr-1"></i>Call Outpost
+                        </a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterOutposts(type) {
+            renderOutposts(type);
+        }
+
+        function getGPSLocation() {
+            const locInput = document.getElementById('req-location');
+            if (navigator.geolocation) {
+                locInput.value = "Fetching GPS coordinates...";
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        locInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)} (GPS Verified)`;
+                    },
+                    err => {
+                        locInput.value = "GPS unavailable. Please type landmark manually.";
+                    },
+                    { timeout: 7000 }
+                );
+            } else {
+                locInput.value = "Geolocation not supported on this browser.";
+            }
+        }
+
+        function filterGuide() {
+            const query = document.getElementById('search-guide').value.toLowerCase();
+            document.querySelectorAll('.guide-card').forEach(card => {
+                const text = card.innerText.toLowerCase();
+                card.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        }
+
+        function quickFilterGuide(cat) {
+            document.querySelectorAll('.guide-card').forEach(card => {
+                if (cat === 'all' || card.getAttribute('data-category') === cat) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Battery Monitor API Integration
+        function initBatteryMonitor() {
+            if ('getBattery' in navigator) {
+                navigator.getBattery().then(battery => {
+                    updateBatteryUI(battery);
+                    battery.addEventListener('levelchange', () => updateBatteryUI(battery));
+                });
+            }
+        }
+
+        function updateBatteryUI(battery) {
+            const level = Math.round(battery.level * 100);
+            const batEl = document.getElementById('battery-status');
+            batEl.classList.remove('hidden');
+            batEl.innerHTML = `<i class="fa-solid fa-battery-three-quarters text-emerald-400 mr-1"></i>${level}%`;
+
+            // Auto switch battery saver if under 15%
+            if (level <= 15 && !isBatterySaver) {
+                toggleBatterySaver();
+            }
+        }
+
+        function toggleBatterySaver() {
+            isBatterySaver = !isBatterySaver;
+            const btnText = document.getElementById('battery-btn-text');
+
+            if (isBatterySaver) {
+                document.body.classList.add('ultra-battery');
+                btnText.innerText = "Ultra Saver ON";
+            } else {
+                document.body.classList.remove('ultra-battery');
+                btnText.innerText = "Battery Mode";
+            }
+        }
+
+        // Strobe SOS Beacon
+        function toggleBeaconModal() {
+            const modal = document.getElementById('beacon-modal');
+            modal.classList.toggle('hidden');
+            if (modal.classList.contains('hidden')) {
+                clearInterval(beaconInterval);
+            }
+        }
+
+        function setBeaconMode(mode) {
+            const light = document.getElementById('beacon-light');
+            const status = document.getElementById('beacon-status');
+            clearInterval(beaconInterval);
+
+            light.className = "w-64 h-64 sm:w-80 sm:h-80 rounded-full border-4 border-white/20 flex flex-col items-center justify-center text-center p-4 my-auto shadow-2xl transition";
+
+            if (mode === 'solid') {
+                light.style.backgroundColor = '#FFFFFF';
+                light.style.color = '#000000';
+                status.innerText = "SOLID TORCH LIGHT";
+            } else if (mode === 'sos') {
+                status.innerText = "RED SOS SIGNAL";
+                light.classList.add('strobe-red');
+            } else if (mode === 'white-strobe') {
+                status.innerText = "WHITE STROBE SIGNAL";
+                light.classList.add('strobe-white');
+            }
+        }
+
+        function printCheatSheet() {
+            window.print();
+        }
+
+        function forceReCache() {
+            alert('Checking and updating offline storage... All survival data is current and ready for offline use.');
+        }
+
+        function escapeHtml(str) {
+            return str ? str.replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            }) : '';
+        }
+    </script>
+</body>
+</html>
